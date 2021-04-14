@@ -163,6 +163,19 @@ void Trt::CopyFromDeviceToHost(std::vector<float>& output, int bindIndex) {
     CUDA_CHECK(cudaMemcpy(output.data(), mBinding[bindIndex], mBindingSize[bindIndex], cudaMemcpyDeviceToHost));
 }
 
+int Trt::GetLayerNameIndex(std::string layer_name) {
+    if (mLayerNameIndex.find(layer_name) == mLayerNameIndex.end()) {
+        return -1;
+    }
+    return mLayerNameIndex[layer_name];
+}
+
+void Trt::CopyFromDeviceToHost(std::vector<float>& output, std::string layer_name) {
+    int bindIndex = mLayerNameIndex[layer_name];
+    output.resize(mBindingSize[bindIndex]/sizeof(float));
+    CUDA_CHECK(cudaMemcpy(output.data(), mBinding[bindIndex], mBindingSize[bindIndex], cudaMemcpyDeviceToHost));
+}
+
 void Trt::CopyFromDeviceToHost(std::vector<float>& output, int bindIndex, const cudaStream_t& stream) {
     output.resize(mBindingSize[bindIndex]/sizeof(float));
     CUDA_CHECK(cudaMemcpyAsync(output.data(), mBinding[bindIndex], mBindingSize[bindIndex], cudaMemcpyDeviceToHost, stream));
@@ -405,6 +418,7 @@ bool Trt::BuildEngineWithOnnx(const std::string& onnxModel,
             for(size_t j=0; j<customOutput.size();j++) {
                 std::string layer_name(output_tensor->getName());
                 if(layer_name == customOutput[j]) {
+                    spdlog::info("markoutput layer name {}", layer_name);
                     mNetwork->markOutput(*output_tensor);
                     break;
                 }
@@ -473,6 +487,7 @@ void Trt::InitEngine() {
     mBindingName.resize(nbBindings);
     mBindingDims.resize(nbBindings);
     mBindingDataType.resize(nbBindings);
+    mLayerNameIndex.clear();
     for(int i=0; i< nbBindings; i++) {
         nvinfer1::Dims dims = mEngine->getBindingDimensions(i);
         nvinfer1::DataType dtype = mEngine->getBindingDataType(i);
@@ -487,11 +502,13 @@ void Trt::InitEngine() {
         } else {
             spdlog::info("output: ");
         }
+        mLayerNameIndex[name] = i;
         spdlog::info("binding bindIndex: {}, name: {}, size in byte: {}",i,name,totalSize);
         spdlog::info("binding dims with {} dimemsion",dims.nbDims);
         for(int j=0;j<dims.nbDims;j++) {
             std::cout << dims.d[j] << " x ";
         }
+        
         std::cout << "\b\b  "<< std::endl;
         mBinding[i] = safeCudaMalloc(totalSize);
         if(mEngine->bindingIsInput(i)) {

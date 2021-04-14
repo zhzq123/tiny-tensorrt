@@ -12,6 +12,7 @@
 #include <iostream>
 #include <numeric>
 #include <algorithm>
+#include <map>
 
 #include "NvInfer.h"
 
@@ -128,6 +129,10 @@ public:
 
     void CopyFromDeviceToHost(std::vector<float>& output, int bindIndex);
 
+    void CopyFromDeviceToHost(std::vector<float>& output, std::string layer_name);
+
+    int GetLayerNameIndex(std::string layer_name);
+
     void CopyFromHostToDevice(const std::vector<float>& input, int bindIndex,const cudaStream_t& stream);
 
     void CopyFromDeviceToHost(std::vector<float>& output, int bindIndex,const cudaStream_t& stream);
@@ -228,6 +233,7 @@ protected:
 
 protected:
     TrtLogger mLogger;
+    std::map<std::string, int> mLayerNameIndex; 
 
     // tensorrt run mode 0:fp32 1:fp16 2:int8
     int mRunMode;
